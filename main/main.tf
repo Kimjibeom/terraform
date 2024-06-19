@@ -22,11 +22,17 @@ resource "aws_security_group" "instance" {
     name = "terraform-instance"
 
     ingress {
-        from_port   = 8080
-        to_port     = 8080
+        from_port   = var.server_port
+        to_port     = var.server_port
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
+}
+
+variable "server_port" {
+    description = "The port the server will use for HTTP requests"
+    type    = number
+    default = 8080
 }
 
 variable "number_example" {
