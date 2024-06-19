@@ -12,7 +12,7 @@ resource "aws_instance" "terraform" {
                 echo "Hello, World" > index.html
                 nohup busybox httpd -f -p 8080 &
                 EOF
-
+ 
     tags = {
         Name = "terraform"
     }
@@ -27,4 +27,10 @@ resource "aws_security_group" "instance" {
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
+}
+
+variable "number_example" {
+    description = "An example of a njumber variable in Terraform"
+    type = number
+    default = 42
 }
