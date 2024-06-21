@@ -36,8 +36,3 @@ This repository contains Terraform configurations for deploying infrastructure.
 - `modules/`: Directory for reusable modules.
 - `env/`: Environment-specific configurations.
 
-## Contributing
-Feel free to open issues or submit pull requests for any improvements.
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
