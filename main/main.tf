@@ -86,7 +86,7 @@ output "public_ip" {
 }
 
 resource "aws_launch_configuration" "example" {
-    ami = "ami-0c55b159cbfafe1f0"
+    image_id = "ami-0c55b159cbfafe1f0"
     instance_type = "t2.micro"
 
     security_groups = [aws_security_group.instance.id]
@@ -106,7 +106,7 @@ resource "aws_launch_configuration" "example" {
 
 resource "aws_autoscaling_group" "example" {
     launch_configuration = aws_launch_configuration.example.name
-    vpc_zone_identifier = data.aws_subnet_ids.default.ids
+    vpc_zone_identifier = data.aws_subnets.default.ids
 
     min_size = 2
     max_size = 10
@@ -122,7 +122,11 @@ data "aws_vpc" "default" {
     default = true
 }
 
-data "aws_subnet_ids" "default" {
-    vpc_id = data.aws_vpc.default.id
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
+
 
