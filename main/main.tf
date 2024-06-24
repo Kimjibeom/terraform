@@ -88,6 +88,7 @@ output "public_ip" {
 resource "aws_launch_configuration" "example" {
     ami = "ami-0c55b159cbfafe1f0"
     instance_type = "t2.micro"
+
     security_groups = [aws_security_group.instance.id]
 
     user_data = <<-EOF
@@ -95,6 +96,12 @@ resource "aws_launch_configuration" "example" {
                 echo "Hello, World" > index.html
                 nohup busybox httpd -f -p ${var.server_port} &
                 EOF
+
+    # ASG 시작 구성
+    # https://www.terraform.io/docs/providers/aws/r/launch_configuration.html
+    lifecycle {
+        create_before_destroy = true
+    }
 }
 
 resource "aws_autoscaling_group" "example" {
