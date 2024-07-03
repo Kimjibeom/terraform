@@ -129,4 +129,8 @@ data "aws_subnets" "default" {
   }
 }
 
-
+data "aws_example" "default" {
+    filter {
+        name = "example"
+    }
+}
