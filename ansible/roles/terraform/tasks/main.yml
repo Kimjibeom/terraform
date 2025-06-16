@@ -4,13 +4,13 @@
   register: terraform_check
   ignore_errors: true
 
-- name: Download Terraform binary (optional)
+- name: Download Terraform binary
   when: terraform_check.rc != 0
   get_url:
-    url: https://releases.hashicorp.com/terraform/1.8.2/terraform_1.8.2_linux_amd64.zip
+    url: https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip
     dest: /tmp/terraform.zip
 
-- name: Unzip and move Terraform binary (optional)
+- name: Unzip and move Terraform binary
   when: terraform_check.rc != 0
   unarchive:
     src: /tmp/terraform.zip
