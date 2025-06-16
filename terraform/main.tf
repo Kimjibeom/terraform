@@ -123,7 +123,7 @@ resource "aws_route_table_association" "public-02" {
 # EC2 인스턴스를 public 서브넷에 배포
 resource "aws_instance" "ubuntu" {
   count                       = 2
-  ami                         = "ami-08943a151bd84664d"
+  ami                         = "ami-08943a151bd468f4e"
   instance_type               = "t3.nano"
   subnet_id                   = element([aws_subnet.public-01.id, aws_subnet.public-02.id], count.index)
   vpc_security_group_ids      = [aws_security_group.allow_ssh.id]
