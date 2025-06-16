@@ -1,0 +1,28 @@
+- name: Install Terraform if not present
+  ansible.builtin.command: >
+    which terraform
+  register: terraform_check
+  ignore_errors: true
+
+- name: Download Terraform binary (optional)
+  when: terraform_check.rc != 0
+  get_url:
+    url: https://releases.hashicorp.com/terraform/1.8.2/terraform_1.8.2_linux_amd64.zip
+    dest: /tmp/terraform.zip
+
+- name: Unzip and move Terraform binary (optional)
+  when: terraform_check.rc != 0
+  unarchive:
+    src: /tmp/terraform.zip
+    dest: /usr/local/bin/
+    remote_src: yes
+
+- name: Run 'terraform init'
+  ansible.builtin.command: terraform init
+  args:
+    chdir: "{{ playbook_dir }}/roles/terraform/files/terraform"
+
+- name: Run 'terraform apply'
+  ansible.builtin.command: terraform apply -auto-approve
+  args:
+    chdir: "{{ playbook_dir }}/roles/terraform/files/terraform"
