@@ -1,0 +1,17 @@
+- name: Destroy Terraform-managed infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  collections:
+    - cloud.terraform
+
+  tasks:
+    - name: Init (safe)
+      command: terraform init
+      args:
+        chdir: ../terraform_project
+
+    - name: Terraform destroy
+      cloud.terraform.terraform:
+        project_path: ../terraform_project
+        state: absent
