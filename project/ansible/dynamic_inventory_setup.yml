@@ -1,0 +1,45 @@
+- name: Parse Terraform output and generate inventory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    tf_project_path: "{{ playbook_dir }}/../terraform_project"
+    inventory_output: "{{ playbook_dir }}/../inventory/provisioned.ini"
+
+  tasks:
+    - name: Ensure inventory directory exists
+      file:
+        path: "{{ inventory_output | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Get Terraform output as JSON
+      command: terraform output -json
+      args:
+        chdir: "{{ tf_project_path }}"
+      register: tf_output_raw
+      changed_when: false
+
+    - name: Fail if output is missing public_ips
+      fail:
+        msg: "Terraform output does not contain 'public_ips'."
+      when: tf_output_raw.stdout | from_json | dict2items | selectattr('key', 'equalto', 'public_ips') | list | length == 0
+
+    - name: Set facts from output
+      set_fact:
+        public_ips: "{{ (tf_output_raw.stdout | from_json).public_ips.value }}"
+
+    - name: Debug public IPs
+      debug:
+        var: public_ips
+
+    - name: Generate static inventory file
+      copy:
+        content: |
+          [provisioned]
+          {% for ip in public_ips %}
+          {{ ip }}
+          {% endfor %}
+        dest: "{{ inventory_output }}"
+        mode: '0644'

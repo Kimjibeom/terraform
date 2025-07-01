@@ -1,0 +1,6 @@
+- name: Ping provisioned EC2 hosts
+  hosts: provisioned
+  gather_facts: false
+  tasks:
+    - name: Ping
+      ping:

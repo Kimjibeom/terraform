@@ -1,0 +1,23 @@
+- name: Provision infrastructure using Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    tf_project_path: "{{ playbook_dir }}/../terraform_project"
+
+  tasks:
+    - name: Generate Terraform main.tf from template
+      ansible.builtin.template:
+        src: templates/main.tf.j2
+        dest: "{{ tf_project_path }}/main.tf"
+
+    - name: Initialize Terraform
+      command: terraform init
+      args:
+        chdir: "{{ tf_project_path }}"
+
+    - name: Apply Terraform
+      command: terraform apply -auto-approve
+      args:
+        chdir: "{{ tf_project_path }}"
