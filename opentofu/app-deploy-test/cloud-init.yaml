@@ -1,0 +1,162 @@
+#cloud-config
+locale: en_US.UTF-8
+timezone: Asia/Seoul
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - wget
+  - htop
+  - vim
+
+runcmd:
+  # --- Docker 권한 부여 (ubuntu 계정) ---
+  - usermod -aG docker ubuntu
+
+  # --- Docker 시작 ---
+  - systemctl enable docker
+  - systemctl start docker
+
+  # --- Docker 준비 대기 ---
+  - |
+    retries=10
+    while ! docker info >/dev/null 2>&1 && [ $retries -gt 0 ]; do
+      echo "Waiting for Docker to be ready..."
+      sleep 3
+      retries=$((retries - 1))
+    done
+
+  # --- 웹앱 디렉토리 생성 ---
+  - mkdir -p /home/ubuntu/webapp
+  - mkdir -p /home/ubuntu/webapp/postgres-data
+  - mkdir -p /home/ubuntu/webapp/keycloak-data
+
+  # --- Docker Compose 설정 (Keycloak + Postgres) ---
+  #     KC_ADMIN_PW 는 Compose 실행 시 환경변수로 전달될 예정
+  - |
+    cat > /home/ubuntu/webapp/docker-compose.yml << 'EOF'
+    version: '3'
+
+    services:
+      postgres:
+        image: postgres:15
+        container_name: keycloak-db
+        environment:
+          - POSTGRES_DB=keycloak
+          - POSTGRES_USER=keycloak
+          - POSTGRES_PASSWORD=keycloak_db_password
+          - TZ=Asia/Seoul
+        volumes:
+          - ./postgres-data:/var/lib/postgresql/data
+        ports:
+          - "5432:5432"
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+        restart: unless-stopped
+
+      keycloak:
+        image: quay.io/keycloak/keycloak:latest
+        container_name: keycloak-app
+        command: start-dev
+        depends_on:
+          postgres:
+            condition: service_healthy
+        environment:
+          - KEYCLOAK_ADMIN=${user_id}
+          - KEYCLOAK_ADMIN_PASSWORD=$${KC_ADMIN_PW}
+          - KC_DB=postgres
+          - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+          - KC_DB_USERNAME=keycloak
+          - KC_DB_PASSWORD=keycloak_db_password
+          - KC_HOSTNAME_STRICT=false
+          - KC_HOSTNAME_STRICT_HTTPS=false
+          - KC_HTTP_ENABLED=true
+          - KC_PROXY=edge
+          - KC_LOG_LEVEL=INFO
+          - TZ=Asia/Seoul
+        ports:
+          - "8080:8080" 
+        volumes:
+          - ./keycloak-data:/opt/keycloak/data
+        restart: unless-stopped
+    EOF
+
+  # --- 권한 설정 ---
+  - chown -R ubuntu:ubuntu /home/ubuntu/webapp
+  - chmod -R 755 /home/ubuntu/webapp
+
+  # --- 동적 관리자 PW 생성 & Compose 실행 ---
+  #     (runcmd 항목 간 환경이 공유되지 않으므로 한 블록에서 처리)
+  - |
+    KC_ADMIN_PW="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)"
+    echo -n "$KC_ADMIN_PW" > /root/kc_admin_pw
+    chmod 600 /root/kc_admin_pw
+
+    # Compose 실행 (환경변수 주입)
+    cd /home/ubuntu/webapp
+    KC_ADMIN="${user_id}" KC_ADMIN_PW="$KC_ADMIN_PW" PATH=$PATH:/usr/local/bin:/usr/bin docker compose up -d
+
+  # --- Keycloak 준비 대기 ---
+  - |
+    echo "Waiting for Keycloak to be ready..."
+    retries=30
+    while [ $retries -gt 0 ]; do
+      if curl -fs http://localhost:8080/health/ready >/dev/null 2>&1; then
+        echo "Keycloak is ready!"
+        break
+      fi
+      echo "Still waiting... ($retries left)"
+      sleep 10
+      retries=$((retries - 1))
+    done
+
+  # --- 자격 정보 저장 ---
+  - |
+    KC_ADMIN_PW="$(cat /root/kc_admin_pw)"
+    PUB_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+    cat > /home/ubuntu/credentials.txt << EOF
+    ==========================================
+    🔐 KEYCLOAK ADMIN CREDENTIALS
+    ==========================================
+    Admin ID     : ${user_id}
+    Admin PW     : $${KC_ADMIN_PW}
+    Instance ID  : $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+
+    Keycloak Admin Console:
+    - http://$PUB_IP:8080/admin/
+
+    Generated at: $(date)
+    ==========================================
+    EOF
+    chmod 600 /home/ubuntu/credentials.txt
+    chown ubuntu:ubuntu /home/ubuntu/credentials.txt
+
+final_message: |
+  ==========================================
+  ✅ KEYCLOAK + POSTGRES DEPLOYED
+  ==========================================
+  Admin ID: ${user_id}
+  Password: (see /home/ubuntu/credentials.txt)
+  Instance ID: $(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+
+  🔗 Admin Console:
+  http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8080/admin/
+
+  📁 Credentials: /home/ubuntu/credentials.txt
+  ==========================================
+
+write_files:
+  - path: /etc/motd
+    content: |
+      ==========================================
+      🚀 Keycloak Authentication Server
+      ==========================================
+      Admin Console: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8080/admin/
+      Credentials file: /home/ubuntu/credentials.txt
+      ==========================================
