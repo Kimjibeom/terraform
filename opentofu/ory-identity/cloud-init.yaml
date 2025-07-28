@@ -28,12 +28,12 @@ write_files:
       if [[ -z "${kratos_admin_url}" || -z "${user_email}" || -z "${user_name}" ]]; then
         log "ERROR: Required environment variables missing"
         log "kratos_admin_url: ${kratos_admin_url}"
-        log "user_email: ${user_email}" 
+        log "user_email: ${user_email}"
         log "user_name: ${user_name}"
         exit 1
       fi
       
-      # 기본값 설정
+      # 기본값 설정 (명시적 if문으로 변경)
       if [[ -z "${user_role}" ]]; then
         USER_ROLE="user"
       else
@@ -57,27 +57,26 @@ write_files:
         fi
       done
       
-      # 임시 비밀번호 생성
+      # 임시 비밀번호 생성 (스크립트 내에서만 사용)
       PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
-      log "Generated temporary password"
+      log "Generated temporary password for in-memory use"
       
       # 기존 사용자 확인
       log "Checking if user already exists..."
       EXISTING_USER=$(curl -k -s "${kratos_admin_url}/identities" | jq -r --arg email "${user_email}" '.[] | select(.traits.email == $email) | .id' 2>/dev/null || echo "")
       
       if [[ -n "$EXISTING_USER" ]]; then
-        log "User with email ${user_email} already exists (ID: $EXISTING_USER)"
+        log "User with email ${user_email} already exists (ID: $EXISTING_USER). No action needed."
+        unset PW # 사용하지 않은 비밀번호 변수 정리
+        log "Temporary password variable has been unset. Exiting."
         exit 0
       fi
       
       # Identity 생성을 위한 JSON 데이터 준비
       log "Creating new identity for ${user_email}..."
       
-      # traits 구성
       TRAITS='{"email":"'${user_email}'","name":"'${user_name}'","role":"'$USER_ROLE'"}'
-      log "Final traits: $TRAITS"
       
-      # 환경 변수를 사용하여 JSON 생성
       JSON_DATA='{"schema_id":"default","state":"active","traits":'$TRAITS',"credentials":{"password":{"config":{"password":"'$PW'"}}},"verifiable_addresses":[{"value":"'${user_email}'","via":"email","verified":true,"status":"completed"}],"recovery_addresses":[{"value":"'${user_email}'","via":"email"}]}'
       
       # JSON 데이터 로깅 (비밀번호 마스킹)
@@ -93,42 +92,51 @@ write_files:
         --connect-timeout 30 \
         --max-time 60)
       
+      # 사용이 끝난 비밀번호 변수를 즉시 메모리에서 삭제
+      unset PW
+      log "Temporary password variable has been unset from memory."
+
       # HTTP 상태 코드 분리
       HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
       BODY=$(echo "$RESPONSE" | head -n -1)
       
       log "HTTP Response Code: $HTTP_CODE"
-      log "Response Body: $BODY"
       
+      # 실패 시에만 전체 응답 본문 로깅
+      if [[ "$HTTP_CODE" != "201" ]]; then
+          log "Response Body: $BODY"
+      fi
+
       if [[ "$HTTP_CODE" == "201" ]]; then
         IDENTITY_ID=$(echo "$BODY" | jq -r '.id // "unknown"')
         log "SUCCESS: Identity created successfully with ID: $IDENTITY_ID"
         
-        # 생성된 사용자 정보를 파일에 저장
-        echo "========================================" > /tmp/kratos_user_info.txt
-        echo "🔐 ORY Kratos Identity Created" >> /tmp/kratos_user_info.txt
-        echo "========================================" >> /tmp/kratos_user_info.txt
-        echo "Email     : ${user_email}" >> /tmp/kratos_user_info.txt
-        echo "Name      : ${user_name}" >> /tmp/kratos_user_info.txt
-        echo "Role      : $USER_ROLE" >> /tmp/kratos_user_info.txt
-        echo "ID        : $IDENTITY_ID" >> /tmp/kratos_user_info.txt
-        echo "Password  : $PW" >> /tmp/kratos_user_info.txt
-        echo "Created   : $(date)" >> /tmp/kratos_user_info.txt
-        echo "Admin URL : ${kratos_admin_url}" >> /tmp/kratos_user_info.txt
-        echo "========================================" >> /tmp/kratos_user_info.txt
+        # 생성된 사용자 정보를 파일에 저장 (비밀번호 제외)
+        (
+          echo "========================================"
+          echo "🔐 ORY Kratos Identity Created"
+          echo "========================================"
+          echo "Email     : ${user_email}"
+          echo "Name      : ${user_name}"
+          echo "Role      : $USER_ROLE"
+          echo "ID        : $IDENTITY_ID"
+          echo "Created   : $(date)"
+          echo "Admin URL : ${kratos_admin_url}"
+          echo "----------------------------------------"
+          echo "ACTION REQUIRED:"
+          echo "Please use the 'Forgot Password' flow in the application's UI to set your initial password."
+          echo "========================================"
+        ) > /tmp/kratos_user_info.txt
         
         log "User information saved to /tmp/kratos_user_info.txt"
         
       elif [[ "$HTTP_CODE" == "409" ]]; then
         log "WARNING: Identity may already exist (HTTP 409)"
-        log "Response: $BODY"
       elif [[ "$HTTP_CODE" == "400" ]]; then
         log "ERROR: Bad request (HTTP 400) - Check JSON format and schema"
-        log "Response: $BODY"
         exit 1
       else
         log "ERROR: Failed to create identity. HTTP Code: $HTTP_CODE"
-        log "Error response: $BODY"
         exit 1
       fi
       
@@ -143,8 +151,8 @@ write_files:
       Name  : ${user_name}
       Role  : ${user_role}
       
-      Check /tmp/kratos_user_info.txt for details
-      Check /var/log/kratos-provisioning.log for logs
+      Check /tmp/kratos_user_info.txt for details.
+      Check /var/log/kratos-provisioning.log for logs.
       ==========================================
 
 runcmd:
