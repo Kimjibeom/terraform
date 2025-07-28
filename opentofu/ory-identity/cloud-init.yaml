@@ -1,0 +1,155 @@
+#cloud-config
+locale: en_US.UTF-8
+timezone: Asia/Seoul
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - jq
+  - openssl
+
+write_files:
+  - path: /tmp/create_kratos_identity.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+      
+      # 로그 함수
+      log() {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a /var/log/kratos-provisioning.log
+      }
+      
+      log "Starting Kratos identity provisioning..."
+      
+      # 환경 변수 확인
+      if [[ -z "${kratos_admin_url}" || -z "${user_email}" || -z "${user_name}" ]]; then
+        log "ERROR: Required environment variables missing"
+        log "kratos_admin_url: ${kratos_admin_url}"
+        log "user_email: ${user_email}" 
+        log "user_name: ${user_name}"
+        exit 1
+      fi
+      
+      # 기본값 설정
+      if [[ -z "${user_role}" ]]; then
+        USER_ROLE="user"
+      else
+        USER_ROLE="${user_role}"
+      fi
+      log "Using role: $USER_ROLE"
+      
+      # Kratos 연결 확인 (최대 30초 대기)
+      log "Testing connection to Kratos Admin API..."
+      for i in {1..6}; do
+        if curl -k -s -f "${kratos_admin_url}/identities" > /dev/null 2>&1; then
+          log "Kratos Admin API is accessible"
+          break
+        else
+          log "Attempt $i: Kratos Admin API not ready, waiting 5 seconds..."
+          if [ $i -eq 6 ]; then
+            log "ERROR: Cannot connect to Kratos Admin API after 30 seconds"
+            exit 1
+          fi
+          sleep 5
+        fi
+      done
+      
+      # 임시 비밀번호 생성
+      PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)
+      log "Generated temporary password"
+      
+      # 기존 사용자 확인
+      log "Checking if user already exists..."
+      EXISTING_USER=$(curl -k -s "${kratos_admin_url}/identities" | jq -r --arg email "${user_email}" '.[] | select(.traits.email == $email) | .id' 2>/dev/null || echo "")
+      
+      if [[ -n "$EXISTING_USER" ]]; then
+        log "User with email ${user_email} already exists (ID: $EXISTING_USER)"
+        exit 0
+      fi
+      
+      # Identity 생성을 위한 JSON 데이터 준비
+      log "Creating new identity for ${user_email}..."
+      
+      # traits 구성
+      TRAITS='{"email":"'${user_email}'","name":"'${user_name}'","role":"'$USER_ROLE'"}'
+      log "Final traits: $TRAITS"
+      
+      # 환경 변수를 사용하여 JSON 생성
+      JSON_DATA='{"schema_id":"default","state":"active","traits":'$TRAITS',"credentials":{"password":{"config":{"password":"'$PW'"}}},"verifiable_addresses":[{"value":"'${user_email}'","via":"email","verified":true,"status":"completed"}],"recovery_addresses":[{"value":"'${user_email}'","via":"email"}]}'
+      
+      # JSON 데이터 로깅 (비밀번호 마스킹)
+      JSON_DATA_MASKED=$(echo "$JSON_DATA" | sed 's/"password":"[^"]*"/"password":"***MASKED***"/g')
+      log "Request JSON: $JSON_DATA_MASKED"
+      
+      # API 호출
+      log "Making API request to ${kratos_admin_url}/identities"
+      RESPONSE=$(curl -k -s -w "\n%%{http_code}" -X POST "${kratos_admin_url}/identities" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -d "$JSON_DATA" \
+        --connect-timeout 30 \
+        --max-time 60)
+      
+      # HTTP 상태 코드 분리
+      HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+      BODY=$(echo "$RESPONSE" | head -n -1)
+      
+      log "HTTP Response Code: $HTTP_CODE"
+      log "Response Body: $BODY"
+      
+      if [[ "$HTTP_CODE" == "201" ]]; then
+        IDENTITY_ID=$(echo "$BODY" | jq -r '.id // "unknown"')
+        log "SUCCESS: Identity created successfully with ID: $IDENTITY_ID"
+        
+        # 생성된 사용자 정보를 파일에 저장
+        echo "========================================" > /tmp/kratos_user_info.txt
+        echo "🔐 ORY Kratos Identity Created" >> /tmp/kratos_user_info.txt
+        echo "========================================" >> /tmp/kratos_user_info.txt
+        echo "Email     : ${user_email}" >> /tmp/kratos_user_info.txt
+        echo "Name      : ${user_name}" >> /tmp/kratos_user_info.txt
+        echo "Role      : $USER_ROLE" >> /tmp/kratos_user_info.txt
+        echo "ID        : $IDENTITY_ID" >> /tmp/kratos_user_info.txt
+        echo "Password  : $PW" >> /tmp/kratos_user_info.txt
+        echo "Created   : $(date)" >> /tmp/kratos_user_info.txt
+        echo "Admin URL : ${kratos_admin_url}" >> /tmp/kratos_user_info.txt
+        echo "========================================" >> /tmp/kratos_user_info.txt
+        
+        log "User information saved to /tmp/kratos_user_info.txt"
+        
+      elif [[ "$HTTP_CODE" == "409" ]]; then
+        log "WARNING: Identity may already exist (HTTP 409)"
+        log "Response: $BODY"
+      elif [[ "$HTTP_CODE" == "400" ]]; then
+        log "ERROR: Bad request (HTTP 400) - Check JSON format and schema"
+        log "Response: $BODY"
+        exit 1
+      else
+        log "ERROR: Failed to create identity. HTTP Code: $HTTP_CODE"
+        log "Error response: $BODY"
+        exit 1
+      fi
+      
+      log "Kratos provisioning completed successfully"
+
+  - path: /etc/motd
+    content: |
+      ==========================================
+      🔐 ORY Kratos Identity Auto‑Provisioned
+      ==========================================
+      Email : ${user_email}
+      Name  : ${user_name}
+      Role  : ${user_role}
+      
+      Check /tmp/kratos_user_info.txt for details
+      Check /var/log/kratos-provisioning.log for logs
+      ==========================================
+
+runcmd:
+  - export kratos_admin_url="${kratos_admin_url}"
+  - export user_email="${user_email}"
+  - export user_name="${user_name}"
+  - export user_role="${user_role}"
+  - /tmp/create_kratos_identity.sh
