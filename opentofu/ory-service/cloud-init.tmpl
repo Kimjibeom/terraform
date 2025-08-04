@@ -1,0 +1,89 @@
+#cloud-config
+locale: en_US.UTF-8
+timezone: Asia/Seoul
+
+# 큰 업그레이드로 부팅 지연을 막기 위해 upgrade는 비활성화
+package_update: true
+package_upgrade: false
+
+# 패키지 설치는 하지 않음(이미 AMI에 있다고 가정). 없을 경우 스크립트가 감지하고 메시지 출력.
+packages: []
+
+write_files:
+  # 스크립트 (base64 삽입)
+  - path: /usr/local/bin/create_kratos_identity.sh
+    permissions: '0755'
+    encoding: b64
+    content: "${kratos_script_b64}"
+
+  - path: /usr/local/bin/create_hydra_client.sh
+    permissions: '0755'
+    encoding: b64
+    content: "${hydra_script_b64}"
+
+  # systemd units: 순서/의존성 보장
+  - path: /etc/systemd/system/kratos-provision.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Provision ORY Kratos Identity
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      Environment=kratos_admin_url=${kratos_admin_url}
+      Environment=user_email=${user_email}
+      Environment=user_name=${user_name}
+      Environment=user_role=${user_role}
+      ExecStart=/usr/local/bin/create_kratos_identity.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/grafana-oidc.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Setup Hydra client and deploy Grafana
+      Wants=network-online.target docker.service
+      After=network-online.target docker.service kratos-provision.service
+
+      [Service]
+      Type=oneshot
+      Environment=hydra_admin_url=${hydra_admin_url}
+      Environment=hydra_public_url=${hydra_public_url}
+      Environment=grafana_domain=${grafana_domain}
+      Environment=grafana_client_id=${grafana_client_id}
+      Environment=grafana_org_role=${grafana_org_role}
+      ExecStart=/usr/local/bin/create_hydra_client.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/motd
+    content: |
+      ==========================================
+      🔐 ORY Kratos Identity Auto‑Provisioned
+      ==========================================
+      Email : ${user_email}
+      Name  : ${user_name}
+      Role  : ${user_role}
+
+      Grafana OIDC configured via ORY Hydra.
+      - Logs:
+        * /var/log/kratos-provisioning.log
+        * /var/log/grafana-oidc-setup.log
+      - Grafana files:
+        * /opt/grafana/docker-compose.yml
+        * /opt/grafana/grafana.env (0600, contains client_secret)
+      ==========================================
+
+runcmd:
+  # docker 그룹 권한 부여 (재로그인 후 ubuntu 사용자에 반영)
+  - [ bash, -lc, "usermod -aG docker ubuntu || true" ]
+  - [ bash, -lc, "systemctl daemon-reload" ]
+  - [ bash, -lc, "systemctl enable --now kratos-provision.service" ]
+  - [ bash, -lc, "systemctl enable --now grafana-oidc.service" ]
