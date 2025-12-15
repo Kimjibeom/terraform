@@ -29,11 +29,10 @@ resource "vsphere_virtual_machine" "master" {
 
     customize {
       linux_options {
-        host_name = "ssg-master-${format("%02d", count.index + 1)}"
+        host_name = "ssg-master-${format("%02d", count.index + 4)}"
         domain    = "local"
       }
       network_interface {
-        # Master IP: 172.30.31.111, 112, 113
         ipv4_address = "172.30.30.${111 + count.index}"
         ipv4_netmask = 24
       }

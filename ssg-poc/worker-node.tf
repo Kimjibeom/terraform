@@ -1,6 +1,6 @@
 resource "vsphere_virtual_machine" "worker" {
   count = 3 
-  name  = "ssg-worker-${format("%02d", count.index + 1)}"
+  name  = "ssg-worker-${format("%02d", count.index + 4)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
@@ -21,7 +21,7 @@ resource "vsphere_virtual_machine" "worker" {
   # [Disk 0] OS 영역
   disk {
     label            = "disk0"
-    size             = data.vsphere_virtual_machine.template.disks.0.size
+    size             = 50
     thin_provisioned = data.vsphere_virtual_machine.template.disks.0.thin_provisioned
   }
 
@@ -38,7 +38,7 @@ resource "vsphere_virtual_machine" "worker" {
 
     customize {
       linux_options {
-        host_name = "ssg-worker-${format("%02d", count.index + 1)}"
+        host_name = "ssg-worker-${format("%02d", count.index + 4)}"
         domain    = "local"
       }
       network_interface {
