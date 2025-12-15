@@ -34,7 +34,7 @@ resource "vsphere_virtual_machine" "master" {
       }
       network_interface {
         ipv4_address = "172.30.30.${111 + count.index}"
-        ipv4_netmask = 24
+        ipv4_netmask = 16
       }
       ipv4_gateway = "172.30.0.1" 
     }
