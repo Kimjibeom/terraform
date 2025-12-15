@@ -1,7 +1,7 @@
 provider "vsphere" {
-  user                 = "administrator@vsphere.local"
-  password             = "Insoft!23"
-  vsphere_server       = "172.30.10.3"
+  user                 = var.vsphere_user
+  password             = var.vsphere_password
+  vsphere_server       = var.vsphere_server
   allow_unverified_ssl = true
 }
 
