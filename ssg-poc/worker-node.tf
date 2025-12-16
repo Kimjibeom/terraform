@@ -45,7 +45,8 @@ resource "vsphere_virtual_machine" "worker" {
         ipv4_address = "172.30.30.${121 + count.index}"
         ipv4_netmask = 16
       }
-      ipv4_gateway = "172.30.0.1" 
+      ipv4_gateway = "172.30.0.1"
+      dns_server_list = ["8.8.8.8"]
     }
   }
 }
