@@ -1,6 +1,6 @@
 resource "vsphere_virtual_machine" "worker" {
   count = 3 
-  name  = "ssg-worker-${format("%02d", count.index + 4)}"
+  name  = "gpu-worker-${format("%02d", count.index + 4)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
@@ -28,7 +28,7 @@ resource "vsphere_virtual_machine" "worker" {
   # [Disk 1] 스토리지용 디스크
   disk {
     label            = "disk1"
-    size             = 100 
+    size             = 200 
     unit_number      = 1    # 두 번째 슬롯
     thin_provisioned = true
   }
@@ -38,11 +38,11 @@ resource "vsphere_virtual_machine" "worker" {
 
     customize {
       linux_options {
-        host_name = "ssg-worker-${format("%02d", count.index + 4)}"
+        host_name = "gpu-worker-${format("%02d", count.index + 4)}"
         domain    = "local"
       }
       network_interface {
-        ipv4_address = "172.30.30.${121 + count.index}"
+        ipv4_address = "172.30.32.${121 + count.index}"
         ipv4_netmask = 16
       }
       ipv4_gateway = "172.30.0.1"
