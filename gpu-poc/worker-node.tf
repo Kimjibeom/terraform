@@ -1,12 +1,12 @@
 resource "vsphere_virtual_machine" "worker" {
-  count = 3 
+  count = 0
   name  = "gpu-worker-${format("%02d", count.index + 4)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
 
   num_cpus = 16
-  memory   = 32
+  memory   = 32768
   guest_id = data.vsphere_virtual_machine.template.guest_id
   scsi_type = data.vsphere_virtual_machine.template.scsi_type
 
@@ -38,7 +38,7 @@ resource "vsphere_virtual_machine" "worker" {
 
     customize {
       linux_options {
-        host_name = "gpu-worker-${format("%02d", count.index + 4)}"
+        host_name = "gpu-worker-${format("%02d", count.index + 1)}"
         domain    = "local"
       }
       network_interface {

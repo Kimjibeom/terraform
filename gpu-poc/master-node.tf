@@ -6,7 +6,7 @@ resource "vsphere_virtual_machine" "master" {
   datastore_id     = data.vsphere_datastore.datastore.id
 
   num_cpus = 8
-  memory   = 16
+  memory   = 16384
   guest_id = data.vsphere_virtual_machine.template.guest_id
   scsi_type = data.vsphere_virtual_machine.template.scsi_type
 
@@ -29,7 +29,7 @@ resource "vsphere_virtual_machine" "master" {
 
     customize {
       linux_options {
-        host_name = "gpu-master-${format("%02d", count.index + 4)}"
+        host_name = "gpu-master-${format("%02d", count.index + 1)}"
         domain    = "local"
       }
       network_interface {
