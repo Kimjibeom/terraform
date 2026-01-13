@@ -18,7 +18,7 @@ data "vsphere_compute_cluster" "cluster" {
 }
 
 data "vsphere_resource_pool" "pool" {
-  name          = "SW/Resources/ssg-poc" 
+  name          = "SW/Resources/gpu-poc" 
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
