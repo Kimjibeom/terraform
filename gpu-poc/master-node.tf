@@ -5,8 +5,8 @@ resource "vsphere_virtual_machine" "master" {
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
 
-  num_cpus = data.vsphere_virtual_machine.template.num_cpus
-  memory   = data.vsphere_virtual_machine.template.memory
+  num_cpus = 8
+  memory   = 16
   guest_id = data.vsphere_virtual_machine.template.guest_id
   scsi_type = data.vsphere_virtual_machine.template.scsi_type
 
