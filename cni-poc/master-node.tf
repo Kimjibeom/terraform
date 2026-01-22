@@ -1,6 +1,6 @@
 resource "vsphere_virtual_machine" "master" {
   count = 3
-  name  = "gpu-master-${format("%02d", count.index + 1)}"
+  name  = "cni-master-${format("%02d", count.index + 1)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
@@ -29,11 +29,11 @@ resource "vsphere_virtual_machine" "master" {
 
     customize {
       linux_options {
-        host_name = "gpu-master-${format("%02d", count.index + 1)}"
+        host_name = "cni-master-${format("%02d", count.index + 1)}"
         domain    = "local"
       }
       network_interface {
-        ipv4_address = "172.30.32.${111 + count.index}"
+        ipv4_address = "172.30.33.${111 + count.index}"
         ipv4_netmask = 16
       }
       ipv4_gateway = "172.30.0.1"
