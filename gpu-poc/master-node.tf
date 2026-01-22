@@ -1,6 +1,6 @@
 resource "vsphere_virtual_machine" "master" {
   count = 3
-  name  = "gpu-master-${format("%02d", count.index + 4)}"
+  name  = "gpu-master-${format("%02d", count.index + 1)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
   datastore_id     = data.vsphere_datastore.datastore.id
