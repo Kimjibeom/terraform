@@ -1,5 +1,5 @@
 resource "vsphere_virtual_machine" "worker" {
-  count = 0
+  count = 3
   name  = "cni-worker-${format("%02d", count.index + 1)}"
 
   resource_pool_id = data.vsphere_resource_pool.pool.id
