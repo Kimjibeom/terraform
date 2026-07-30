@@ -7,8 +7,8 @@ terraform {
 
   required_providers {
     vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "1.26.0"
+      source  = "vmware/vsphere"
+      version = "~> 2.0"
     }
   }
 }
@@ -79,6 +79,7 @@ resource "vsphere_virtual_machine" "vm" {
   resource_pool_id = data.vsphere_host.host.resource_pool_id
   datastore_id     = data.vsphere_datastore.datastore.id
   host_system_id   = data.vsphere_host.host.id
+  datacenter_id    = data.vsphere_datacenter.dc.id
 
   # 리소스 설정 — OVF 이미지 스펙에 맞게 each.value에서 가져옴
   num_cpus = each.value.cpu
@@ -96,12 +97,7 @@ resource "vsphere_virtual_machine" "vm" {
     adapter_type = "e1000"
   }
 
-  # 디스크 (OVF 기반)
-  disk {
-    label            = "disk0"
-    size             = each.value.disk_size   # GB 단위
-    thin_provisioned = true
-  }
+  # (disk 블록은 OVF 배포 시 standalone ESXi에서 정책 오류를 유발할 수 있으므로 제거. 원본 OVF의 디스크 설정을 그대로 따름)
 
   # OVF 배포 설정
   ovf_deploy {
@@ -113,29 +109,15 @@ resource "vsphere_virtual_machine" "vm" {
     }
   }
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # vApp Properties: Cloud-init에 네트워크 설정 전달
-  # ───────────────────────────────────────────────────────────────────────────
-  vapp {
-    properties = {
-      "hostname"  = each.key
-      "user-data" = base64encode(templatefile("${path.module}/templates/cloud-init.yaml", {
-        hostname    = each.key
-        ip_address  = each.value.ip
-        netmask     = each.value.netmask
-        gateway     = each.value.gateway
-        dns_servers = each.value.dns
-      }))
-    }
-  }
+  # (vApp 속성 설정은 ESXi 단일 호스트에서 지원되지 않아 에러를 유발하므로 제거함)
 
-  # VMware Tools가 올라올 때까지 대기
-  wait_for_guest_net_timeout = 5
+  # 네트워크 대기 해제 - IP 수동 설정을 위해
+  wait_for_guest_net_timeout  = 0
+  wait_for_guest_ip_timeout   = 0
 
   lifecycle {
     ignore_changes = [
       ovf_deploy,       # 초기 배포 이후 변경 무시
-      vapp,             # vApp 속성 변경 무시
     ]
   }
 }
