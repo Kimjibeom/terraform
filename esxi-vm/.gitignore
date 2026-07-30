@@ -4,9 +4,7 @@
 *.tfstate
 *.tfstate.backup
 *.tfplan
-
-# 민감 정보 (필요 시 주석 해제)
-# terraform.tfvars
+*.tfvars
 
 # OVF 파일 (용량이 크므로 Git에서 제외)
 ovf/
